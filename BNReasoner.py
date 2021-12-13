@@ -26,7 +26,7 @@ class BNReasoner:
         if isinstance(subset, str):
             subset = [subset]
 
-        variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction
+        variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
         new_factor = self.init_factor(variables, 0)
         subset_factor = self.init_factor(subset, 0)
 

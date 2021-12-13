@@ -20,7 +20,7 @@ class BNReasoner:
 
     # TODO: This is where your methods should go
 
-    def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]):
+    def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)
         if isinstance(subset, str):
@@ -34,30 +34,28 @@ class BNReasoner:
             for _, z in subset_factor.iterrows():
                 new_factor.loc[i, 'p'] = new_factor.loc[i, 'p'] + self.bn.get_compatible_instantiations_table(
                     y[:-1].append(z[:-1]), factor)['p'].sum()
-                # new_factor.loc[i, 'p'] = new_factor.loc[i, 'p'] + factor
 
         return new_factor
 
-    def multiply_factors(self, factors: List[Union[str, pd.DataFrame]]):
+    def multiply_factors(self, factors: List[Union[str, pd.DataFrame]]) -> pd.DataFrame:
         # If there are strings in the input-list of factors, replace them with the corresponding cpt
         for x, y in enumerate(factors):
             if isinstance(y, str):
                 factors[x] = self.bn.get_cpt(y)
 
         variables = list(set().union(*factors))
-        variables.remove('p')
+        variables.remove('p')  # Remove 'p' col to add it again in the next step, ensuring it ends up as the last col
         new_factor = self.init_factor(variables, 1)
 
         for i, z in new_factor.iterrows():
-            for j, f in enumerate(factors):
-                # xi = self.bn.get_compatible_instantiations_table()
+            for _, f in enumerate(factors):
                 new_factor.loc[i, 'p'] = new_factor.loc[i, 'p'] * self.bn.get_compatible_instantiations_table(
                     z[:-1], f)['p'].sum()
 
         return new_factor
 
     @staticmethod
-    def init_factor(variables: list, value=0):
+    def init_factor(variables: list, value=0) -> pd.DataFrame:
         truth_table = product([True, False], repeat=len(variables))
         factor = pd.DataFrame(truth_table, columns=variables)
         factor['p'] = value
@@ -66,10 +64,12 @@ class BNReasoner:
 
 def main():
     bnr = BNReasoner('testing/lecture_example.BIFXML')
-    # a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
-    a = bnr.multiply_factors(['Wet Grass?', 'Rain?'])
-
+    a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
     print(a)
+
+    bnr2 = BNReasoner('testing/multiply_example.BIFXML')
+    b = bnr2.multiply_factors(['D', 'E'])
+    print(b)
 
 
 if __name__ == '__main__':

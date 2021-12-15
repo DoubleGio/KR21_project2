@@ -77,6 +77,15 @@ class BayesNet:
 
     # METHODS THAT MIGHT ME USEFUL -------------------------------------------------------------------------------------
 
+        # self-added
+    def get_parents(self, variable: str) -> List[str]:
+        """
+        Returns the parents of the variable in the graph.
+        :param variable: Variable to get the parents from
+        :return: List of parents
+        """
+        return [c for c in self.structure.predecessors(variable)]
+    
     def get_children(self, variable: str) -> List[str]:
         """
         Returns the children of the variable in the graph.

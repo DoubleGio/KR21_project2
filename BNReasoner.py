@@ -1,7 +1,8 @@
 from typing import Union, List
-from itertools import product
+from itertools import product, combinations
 import pandas as pd
 import numpy as np
+from copy import deepcopy
 from BayesNet import BayesNet
 
 
@@ -54,6 +55,55 @@ class BNReasoner:
 
         return new_factor
 
+    def compute_marginal(self, query: List[str], evidence: pd.Series = None, order: List[str] = None) -> pd.DataFrame:
+        S = deepcopy(self.bn)
+        if evidence is not None:
+            for v in self.bn.get_all_variables():
+                cpt = self.bn.get_cpt(v)
+                cpt_e = self.bn.get_compatible_instantiations_table(evidence, cpt)
+                S.update_cpt(v, cpt_e)
+
+        order = self.min_degree_order()
+        pi = [nv for nv in order if nv not in query]
+        for ele in pi:
+            func_k = [f for f in S.get_all_cpts().values() if ele in f]
+            factor = self.multiply_factors(func_k)
+            # sum out enzo
+
+        # if evidence, normalize door te delen door Pr(evidence)
+
+    def min_degree_order(self) -> List[str]:
+        G = self.bn.get_interaction_graph()
+        order = []
+        for i in range(len(self.bn.get_all_variables())):
+            min_degree_var = ""
+            min_n_neighbors = np.inf
+            min_neighbors = []
+
+            for node in G.nodes:
+                neighbors = []
+                n = 0
+                for neighbor in G.neighbors(node):
+                    neighbors.append(neighbor)
+                    n += 1
+                if n < min_n_neighbors:
+                    min_degree_var = node
+                    min_n_neighbors = n
+                    min_neighbors = neighbors
+
+            # n_neighbors = [sum(1 for _ in G.neighbors(node)) for node in G.nodes]
+            # min_degree_var = list(G.nodes)[np.argmin(n_neighbors)]
+            order.append(min_degree_var)
+
+            if min_n_neighbors > 1:
+                for pair in combinations(min_neighbors, 2):
+                    G.add_edge(pair[0], pair[1])
+
+            G.remove_node(min_degree_var)
+
+        return order
+
+
     @staticmethod
     def init_factor(variables: list, value=0) -> pd.DataFrame:
         truth_table = product([True, False], repeat=len(variables))
@@ -63,13 +113,15 @@ class BNReasoner:
 
 
 def main():
+    # bnr = BNReasoner('testing/lecture_example.BIFXML')
+    # a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
+    # print(a)
+    #
+    # bnr2 = BNReasoner('testing/multiply_example.BIFXML')
+    # b = bnr2.multiply_factors(['D', 'E'])
+    # print(b)
     bnr = BNReasoner('testing/lecture_example.BIFXML')
-    a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
-    print(a)
-
-    bnr2 = BNReasoner('testing/multiply_example.BIFXML')
-    b = bnr2.multiply_factors(['D', 'E'])
-    print(b)
+    bnr.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({"Winter?": True}))
 
 
 if __name__ == '__main__':

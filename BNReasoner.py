@@ -21,6 +21,111 @@ class BNReasoner:
 
     # TODO: This is where your methods should go
 
+        def dseparation(self, x, z, y):
+
+        """
+        Based on graph pruning.
+        Inputs should be lists of variables/nodes (see examples).
+        e.g. ['Y'], ['X','Y'], ['O'].
+        method 'get_parents' has been added to the BayenNet (see BayesNet.py).
+        
+        """
+        query_variables = [x, y, z]
+        query_variables = [item for sublist in query_variables for item in sublist]
+        all_variables = self.bn.get_all_variables()
+        non_instantiated_variables = list(set(all_variables) - set(query_variables))
+
+        # iteratively removes leaf nodes that are not in the set of {x,y,z}
+        counter = 0
+        while counter <= len(non_instantiated_variables):
+
+            if non_instantiated_variables == []:
+                break
+
+            for var in non_instantiated_variables[:]:
+                if self.bn.get_children(var) == []:
+                    non_instantiated_variables.remove(var)
+                    self.bn.del_var(var)
+                    counter -= 1
+                else:
+                    counter += 1
+
+        # remove outgoing edges from all nodes in Z
+        for var in z:
+            for child in self.bn.get_children(var):
+                self.bn.del_edge((var, child))
+
+        # X and Y are d-separated by Z in if X and Y are disconnected in the pruned graph w.r.t. Z
+        # For each var in X, check if that variable reaches any of the variables in Y
+        # -if this is the case, then they are not d-separated --> return False
+        # -if this is not the case, then they are d-separated --> return True
+        num_of_connections = 0
+        for node in x:
+            nodes = [node]
+            visited = []
+
+            while len(nodes) > 0:
+                for var in nodes[:]:
+                    visited.append(var)
+                    for c in self.bn.get_children(var):
+                        if c not in visited:
+                            nodes.append(c)
+                    for p in self.bn.get_parents(var):
+                        if p not in visited:
+                            nodes.append(p)
+                    nodes.pop(0)
+
+                if any(item in y for item in visited):
+                    num_of_connections += 1
+                    break
+
+        #print('Num_of_connections: ' + str(num_of_connections))
+
+        if num_of_connections == 0:
+            return True
+        else:
+            return False
+
+        
+    def network_pruning(self, q, e):
+
+        """
+        q: set of query vars --> e.g. ['A','B','C']
+        e: evidence set --> e.g. {'A': True, 'B': False}
+        """
+
+        evidence = list(e.keys())
+        query_plus_evidence_variables = [q, evidence]
+        query_plus_evidence_variables = [item for sublist in query_plus_evidence_variables for item in sublist]
+        all_variables = self.bn.get_all_variables()
+        non_instantiated_variables = list(set(all_variables) - set(query_plus_evidence_variables))
+
+        # iteratively removes leaf nodes that are not in the set of {q,e}
+        counter = 0
+        while counter <= len(non_instantiated_variables):
+
+            if non_instantiated_variables == []:
+                break
+
+            for var in non_instantiated_variables[:]:
+                if self.bn.get_children(var) == []:
+                    non_instantiated_variables.remove(var)
+                    self.bn.del_var(var)
+                    counter -= 1
+                else:
+                    counter += 1
+
+        # remove outgoing edges from all nodes in Z, and update CPTs
+        for var in evidence:
+            for child in self.bn.get_children(var):
+                self.bn.del_edge((var, child))
+
+                # new = self.bn.get_compatible_instantiations_table(pd.Series(e), self.bn.get_cpt(child))
+                new = self.bn.get_compatible_instantiations_table(pd.Series({var: e.get(var)}), self.bn.get_cpt(child))
+                new = new.drop([var], axis=1)
+                self.bn.update_cpt(child, new)
+    
+    
     def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)

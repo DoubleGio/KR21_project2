@@ -77,9 +77,9 @@ class BayesNet:
 
     # METHODS THAT MIGHT ME USEFUL -------------------------------------------------------------------------------------
 
-        # self-added
     def get_parents(self, variable: str) -> List[str]:
         """
+        CUSTOM FUNCTION
         Returns the parents of the variable in the graph.
         :param variable: Variable to get the parents from
         :return: List of parents

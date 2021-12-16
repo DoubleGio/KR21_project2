@@ -21,7 +21,7 @@ class BNReasoner:
 
     # TODO: This is where your methods should go
 
-        def dseparation(self, x, z, y):
+    def dseparation(self, x, z, y):
 
         """
         Based on graph pruning.
@@ -79,14 +79,13 @@ class BNReasoner:
                     num_of_connections += 1
                     break
 
-        #print('Num_of_connections: ' + str(num_of_connections))
+        # print('Num_of_connections: ' + str(num_of_connections))
 
         if num_of_connections == 0:
             return True
         else:
             return False
 
-        
     def network_pruning(self, q, e):
 
         """
@@ -124,8 +123,7 @@ class BNReasoner:
                 new = self.bn.get_compatible_instantiations_table(pd.Series({var: e.get(var)}), self.bn.get_cpt(child))
                 new = new.drop([var], axis=1)
                 self.bn.update_cpt(child, new)
-    
-    
+
     def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)
@@ -207,7 +205,6 @@ class BNReasoner:
             G.remove_node(min_degree_var)
 
         return order
-
 
     @staticmethod
     def init_factor(variables: list, value=0) -> pd.DataFrame:

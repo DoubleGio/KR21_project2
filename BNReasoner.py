@@ -249,6 +249,74 @@ class BNReasoner:
         factor['p'] = value
         return factor
 
+    def maximise_out (self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
+        if isinstance(factor, str):
+            factor = self.bn.get_cpt(factor)
+        if isinstance(subset, str):
+            subset = [subset]
+
+        variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
+        new_factor = self.init_factor(variables, 0)
+        subset_factor = self.init_factor(subset, 0)
+
+        for i, y in new_factor.iterrows():
+            for _, z in subset_factor.iterrows():
+                new_factor.loc[i, 'p'] = new_factor.loc[i, 'p'] + self.bn.get_compatible_instantiations_table(
+                    y[:-1].append(z[:-1]), factor)['p'].max()
+
+        return new_factor
+
+
+    def MPE(self, e):
+
+        evidence = list(e.keys())
+        evidence_variables = [evidence]
+        evidence_variables = [item for sublist in evidence_variables for item in sublist]
+        all_variables = self.bn.get_all_variables()
+        #prune edges
+        for var in evidence:
+            for child in self.bn.get_children(var):
+                self.bn.del_edge((var, child))
+
+                # new = self.bn.get_compatible_instantiations_table(pd.Series(e), self.bn.get_cpt(child))
+                new = self.bn.get_compatible_instantiations_table(pd.Series({var: e.get(var)}), self.bn.get_cpt(child))
+                new = new.drop([var], axis=1)
+                self.bn.update_cpt(child, new)
+        order = self.min_degree_order()
+        S = deepcopy(self)
+        if evidence is not None:
+            for v in all_variables:
+                S.compute_marginal(order[v], order)
+                newer_factor = S.maximise_out(S.get_cpt(v))
+
+        return newer_factor
+
+
+
+
+    def MAP(self, M, e):
+        evidence = list(e.keys())
+        evidence_variables = [evidence]
+        evidence_variables = [item for sublist in evidence_variables for item in sublist]
+        all_variables = self.bn.get_all_variables()
+        self.network_pruning(M, e)
+        for_order = deepcopy(self.bn)
+        for i in range(M):
+            for_order.del_var(M[i])
+        order = for_order.min_degree_order()
+        order.append(M)
+        S = deepcopy(self.bn)
+        for v in all_variables:
+            var = all_variables[v]
+            S.bn.compute_marginal(S.bn.get_cpt(var), order)
+            if var in Q:
+                new_factor = S.sum_out_factors(S.get_cpt(var))
+            else:
+                new_factor = S.maximise_out(S.get_cpt(var))
+        return new_factor
+
+
+
 
 def main():
     # bnr = BNReasoner('testing/lecture_example.BIFXML')
@@ -259,19 +327,20 @@ def main():
     # b = bnr2.multiply_factors(['D', 'E'])
     # print(b)
 
-    bnr3 = BNReasoner('testing/marginals_example.BIFXML')
-    c = bnr3.compute_marginal(['C'], pd.Series({'A': True}), bnr3.min_degree_order())
-    print(c)
-    cc = bnr3.compute_marginal(['C'], order=bnr3.min_degree_order())
-    print(cc)
+    #bnr3 = BNReasoner('testing/marginals_example.BIFXML')
+    #c = bnr3.compute_marginal(['C'], pd.Series({'A': True}), bnr3.min_degree_order())
+    #print(c)
+    #cc = bnr3.compute_marginal(['C'], order=bnr3.min_degree_order())
+    #print(cc)
 
     bnr4 = BNReasoner('testing/lecture_example.BIFXML')
-    d = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr4.min_degree_order())
+    #d = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr4.min_degree_order())
+    #print(d)
+    #dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
+     #                          order=bnr4.min_degree_order())
+    #print(dd)
+    print("MPE")
+    d = bnr4.MPE({'Winter?': True})
     print(d)
-    dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
-                               order=bnr4.min_degree_order())
-    print(dd)
-
-
 if __name__ == '__main__':
     main()

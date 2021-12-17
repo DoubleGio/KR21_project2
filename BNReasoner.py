@@ -87,7 +87,6 @@ class BNReasoner:
             return False
 
     def network_pruning(self, q, e):
-
         """
         :param q: set of query vars --> e.g. ['A','B','C']
         :param e: evidence set --> e.g. {'A': True, 'B': False}
@@ -126,7 +125,7 @@ class BNReasoner:
 
     def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         """
-        Sum out variable(s) in subset from a factor.
+        Sum out some variable(s) in subset from a factor.
         :param factor:  factor over variables X
         :param subset:  a subset of variables X
         :return:        a factor corresponding to the factor with the subset summed out
@@ -137,8 +136,8 @@ class BNReasoner:
             subset = [subset]
 
         variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
-        new_factor = self.init_factor(variables, 0)
-        subset_factor = self.init_factor(subset, 0)
+        new_factor = init_factor(variables, 0)
+        subset_factor = init_factor(subset, 0)
 
         for i, y in new_factor.iterrows():
             for _, z in subset_factor.iterrows():
@@ -161,7 +160,7 @@ class BNReasoner:
 
         variables = list(set().union(*factors))  # All variables occurring in all given factors (screws up ordering tho)
         variables.remove('p')  # Remove 'p' col to add it again in the next step, ensuring it ends up as the last col
-        new_factor = self.init_factor(variables, 1)
+        new_factor = init_factor(variables, 1)
 
         for i, z in new_factor.iterrows():
             for _, f in enumerate(factors):
@@ -180,7 +179,7 @@ class BNReasoner:
         :return:            a factor describing the marginal
         """
         if order is None:
-            order = self.min_degree_order()
+            order = self.random_order()
 
         S = self.bn.get_all_cpts()
 
@@ -209,6 +208,12 @@ class BNReasoner:
             res_factor['p'] = res_factor['p'] / pr_evidence
 
         return res_factor
+
+    def random_order(self) -> List[str]:
+        """
+        :return: a random ordering of all variables in self.bn
+        """
+        return list(np.random.permutation(self.bn.get_all_variables()))
 
     def min_degree_order(self) -> List[str]:
         """
@@ -242,22 +247,15 @@ class BNReasoner:
 
         return order
 
-    @staticmethod
-    def init_factor(variables: list, value=0) -> pd.DataFrame:
-        truth_table = product([True, False], repeat=len(variables))
-        factor = pd.DataFrame(truth_table, columns=variables)
-        factor['p'] = value
-        return factor
-
-    def maximise_out (self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
+    def maximise_out(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)
         if isinstance(subset, str):
             subset = [subset]
 
         variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
-        new_factor = self.init_factor(variables, 0)
-        subset_factor = self.init_factor(subset, 0)
+        new_factor = init_factor(variables, 0)
+        subset_factor = init_factor(subset, 0)
 
         for i, y in new_factor.iterrows():
             for _, z in subset_factor.iterrows():
@@ -266,14 +264,12 @@ class BNReasoner:
 
         return new_factor
 
-
     def MPE(self, e):
-
         evidence = list(e.keys())
         evidence_variables = [evidence]
         evidence_variables = [item for sublist in evidence_variables for item in sublist]
         all_variables = self.bn.get_all_variables()
-        #prune edges
+        # prune edges
         for var in evidence:
             for child in self.bn.get_children(var):
                 self.bn.del_edge((var, child))
@@ -283,16 +279,13 @@ class BNReasoner:
                 new = new.drop([var], axis=1)
                 self.bn.update_cpt(child, new)
         order = self.min_degree_order()
-        S = deepcopy(self)
+        S = deepcopy(self.bn)
         if evidence is not None:
             for v in all_variables:
                 S.compute_marginal(order[v], order)
                 newer_factor = S.maximise_out(S.get_cpt(v))
 
         return newer_factor
-
-
-
 
     def MAP(self, M, e):
         evidence = list(e.keys())
@@ -316,6 +309,11 @@ class BNReasoner:
         return new_factor
 
 
+def init_factor(variables: List[str], value=0) -> pd.DataFrame:
+    truth_table = product([True, False], repeat=len(variables))
+    factor = pd.DataFrame(truth_table, columns=variables)
+    factor['p'] = value
+    return factor
 
 
 def main():
@@ -327,20 +325,22 @@ def main():
     # b = bnr2.multiply_factors(['D', 'E'])
     # print(b)
 
-    #bnr3 = BNReasoner('testing/marginals_example.BIFXML')
-    #c = bnr3.compute_marginal(['C'], pd.Series({'A': True}), bnr3.min_degree_order())
-    #print(c)
-    #cc = bnr3.compute_marginal(['C'], order=bnr3.min_degree_order())
-    #print(cc)
+    # bnr3 = BNReasoner('testing/marginals_example.BIFXML')
+    # c = bnr3.compute_marginal(['C'], pd.Series({'A': True}), bnr3.min_degree_order())
+    # print(c)
+    # cc = bnr3.compute_marginal(['C'], order=bnr3.min_degree_order())
+    # print(cc)
 
     bnr4 = BNReasoner('testing/lecture_example.BIFXML')
-    #d = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr4.min_degree_order())
-    #print(d)
-    #dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
-     #                          order=bnr4.min_degree_order())
-    #print(dd)
+    # d = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr4.min_degree_order())
+    # print(d)
+    # dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
+    #                          order=bnr4.min_degree_order())
+    # print(dd)
     print("MPE")
     d = bnr4.MPE({'Winter?': True})
     print(d)
+
+
 if __name__ == '__main__':
     main()

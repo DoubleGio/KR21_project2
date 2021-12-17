@@ -246,7 +246,43 @@ class BNReasoner:
             G.remove_node(min_degree_var)
 
         return order
+    
+    def min_fill_order(self) -> List[str]:
+        """
+        Orders variables in self.bn by choosing nodes whose elimination adds smallest number of edges.
+        :return: an ordering of all variables in self.bn
+        """
+        G = self.bn.get_interaction_graph()
+        order = []
+        for i in range(len(self.bn.get_all_variables())):
+            min_var = ""
+            min_added_edges = np.inf
+            min_neighbors = []
 
+            # For each node, count and remember the neighbors; append the node with the smallest count to order
+            for node in G.nodes:
+                neighbors = []
+                p = 0
+                for neighbor in G.neighbors(node):
+                    neighbors.append(neighbor)
+
+                for node_pair in combinations(neighbors, 2):
+                    if not G.has_edge(node_pair[0], node_pair[1]):
+                        p += 1
+                if p < min_added_edges:
+                    min_var = node
+                    min_added_edges = p
+                    min_neighbors = neighbors
+            order.append(min_var)
+
+            if min_added_edges > 1:
+                for pair in combinations(min_neighbors, 2):
+                    G.add_edge(pair[0], pair[1])
+            G.remove_node(min_var)
+
+        return order
+    
+   
     def maximise_out(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)

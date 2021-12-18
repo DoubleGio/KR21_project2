@@ -322,7 +322,33 @@ class BNReasoner:
                 newer_factor = S.maximise_out(S.get_cpt(v))
 
         return newer_factor
+    
+    
+        def MPE2(self, e):
+        all_vars = self.bn.get_all_variables()
+        evidence = list(e.keys())
+        total_vars = [item for item in all_vars if item not in evidence]
+        #print(all_vars)
+        #print(evidence)
+        #print(total_vars)
 
+        self.network_pruning(total_vars,e)
+        #print(self.bn.draw_structure())
+
+        Q = self.bn.get_all_variables()
+        #print(Q)
+
+        order = self.min_degree_order()
+        #print(order)
+
+        S = self.bn.get_all_cpts()
+        #print(S)
+        
+        
+        ''' etc
+        lines 5-10 of mpe algorithm (lecture 4)'''
+
+        
     def MAP(self, M, e):
         evidence = list(e.keys())
         evidence_variables = [evidence]

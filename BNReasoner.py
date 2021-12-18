@@ -21,14 +21,14 @@ class BNReasoner:
 
     # TODO: This is where your methods should go
 
-    def dseparation(self, x, z, y):
-
+    def d_separation(self, x: List[str], z: List[str], y: List[str]) -> bool:
         """
         Based on graph pruning.
-        Inputs should be lists of variables/nodes (see examples).
-        e.g. ['Y'], ['X','Y'], ['O'].
-        method 'get_parents' has been added to the BayenNet (see BayesNet.py).
-        
+        Given z, determine whether x is independent of y.
+        :param x:   list of variables
+        :param z:   list of variables
+        :param y:   list of variables
+        :return:    boolean, whether x is independent or not
         """
         query_variables = [x, y, z]
         query_variables = [item for sublist in query_variables for item in sublist]
@@ -39,11 +39,11 @@ class BNReasoner:
         counter = 0
         while counter <= len(non_instantiated_variables):
 
-            if non_instantiated_variables == []:
+            if not non_instantiated_variables:
                 break
 
             for var in non_instantiated_variables[:]:
-                if self.bn.get_children(var) == []:
+                if not self.bn.get_children(var):
                     non_instantiated_variables.remove(var)
                     self.bn.del_var(var)
                     counter -= 1
@@ -223,24 +223,12 @@ class BNReasoner:
         G = self.bn.get_interaction_graph()
         order = []
         for i in range(len(self.bn.get_all_variables())):
-            min_degree_var = ""
-            min_n_neighbors = np.inf
-            min_neighbors = []
-
-            # For each node, count and remember the neighbors; append the node with the smallest count to order
-            for node in G.nodes:
-                neighbors = []
-                n = 0
-                for neighbor in G.neighbors(node):
-                    neighbors.append(neighbor)
-                    n += 1
-                if n < min_n_neighbors:
-                    min_degree_var = node
-                    min_n_neighbors = n
-                    min_neighbors = neighbors
+            degrees = dict(G.degree)  # Returns the degrees (number of connected edges) per node
+            min_degree_var = min(degrees, key=degrees.get)
+            min_neighbors = [neighbor for neighbor in G.neighbors(min_degree_var)]
             order.append(min_degree_var)
 
-            if min_n_neighbors > 1:
+            if len(min_neighbors) > 1:
                 for pair in combinations(min_neighbors, 2):
                     G.add_edge(pair[0], pair[1])
             G.remove_node(min_degree_var)
@@ -281,8 +269,24 @@ class BNReasoner:
             G.remove_node(min_var)
 
         return order
-    
-   
+
+    def order_width(self, order: List[str]) -> int:
+        """
+        Evaluates the quality of an ordering by returning its width (smaller = better).
+        :param order:   an ordering of self.bn
+        :return:        the the largest width in order
+        """
+        G = self.bn.get_interaction_graph()
+        width = 0
+        for var in order:
+            var_degree = G.degree[var]
+            width = max(width, var_degree)
+            if var_degree > 1:
+                for pair in combinations(G.neighbors(var), 2):
+                    G.add_edge(pair[0], pair[1])
+            G.remove_node(var)
+        return width
+
     def maximise_out(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         if isinstance(factor, str):
             factor = self.bn.get_cpt(factor)
@@ -324,7 +328,7 @@ class BNReasoner:
         return newer_factor
     
     
-        def MPE2(self, e):
+    def MPE2(self, e):
         all_vars = self.bn.get_all_variables()
         evidence = list(e.keys())
         total_vars = [item for item in all_vars if item not in evidence]

@@ -14,7 +14,6 @@ def generate_BN(n_vars: int) -> BayesNet:
     :param n_vars:  integer specifying the number of variables in the network
     :return:        a BayesNet instance
     """
-    print(f'    Generating graph with {n_vars} variables...')
     var_names = [str(v) for v in np.arange(1, n_vars + 1)]
     edges = []
     cpts = {}
@@ -76,8 +75,9 @@ def main():
          'widths': {'random': res_df.copy(), 'min_degree': res_df.copy(), 'min_fill': res_df.copy()}})
 
     for graph_size in graph_sizes:  # For each graph size...
+        print(f'Generating graphs with {graph_size} variables...')
         for n in range(n_graphs):   # create n_graphs variations with the same graph size
-            print(f'Evaluating graph {n}/{n_graphs} - graph size = {graph_size}...')
+            print(f'    Evaluating graph {n+1}/{n_graphs}...', end='\r', flush=True)
             bnr = BNReasoner(generate_BN(graph_size))
             orders = {'random': bnr.random_order(), 'min_degree': bnr.min_degree_order(),
                       'min_fill': bnr.min_fill_order()}
@@ -89,37 +89,40 @@ def main():
 
             results.loc['min_fill', 'timings'].loc[n, graph_size] = run_queries(n_queries, orders['min_fill'])
             results.loc['min_fill', 'widths'].loc[n, graph_size] = bnr.order_width(orders['min_fill'])
+        print('    Done!')
 
     # PLOTTING TIME
     colors = ['pink', 'lightblue', 'lightgreen']
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 16))
     fig.suptitle(f'Results Evaluation BNReasoner')
 
     bp1a = ax1.boxplot(results.loc['random', 'timings'],
-                       positions=np.array(range(n_experiments)) * 3 - 0.6, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3 - 0.4, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[0]) for patch in bp1a['boxes']]
     bp1b = ax1.boxplot(results.loc['min_degree', 'timings'],
-                       positions=np.array(range(n_experiments)) * 3, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[1]) for patch in bp1b['boxes']]
     bp1c = ax1.boxplot(results.loc['min_fill', 'timings'],
-                       positions=np.array(range(n_experiments)) * 3 + 0.6, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3 + 0.4, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[2]) for patch in bp1c['boxes']]
     ax1.set(title='Time taken', xlabel='# variables', ylabel='Duration (s)', xticks=range(0, n_experiments * 3, 3),
             xticklabels=graph_sizes)
     ax1.legend([bp1a['boxes'][0], bp1b['boxes'][0], bp1c['boxes'][0]], ['Random', 'Min Degree', 'Min Fill'])
 
     bp2a = ax2.boxplot(results.loc['random', 'widths'],
-                       positions=np.array(range(n_experiments)) * 3 - 0.6, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3 - 0.4, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[0]) for patch in bp2a['boxes']]
     bp2b = ax2.boxplot(results.loc['min_degree', 'widths'],
-                       positions=np.array(range(n_experiments)) * 3, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[2]) for patch in bp2b['boxes']]
     bp2c = ax2.boxplot(results.loc['min_fill', 'widths'],
-                       positions=np.array(range(n_experiments)) * 3 + 0.6, sym='', patch_artist=True)
+                       positions=np.array(range(n_experiments)) * 3 + 0.4, sym='', patch_artist=True, widths=0.3)
     [patch.set_facecolor(colors[2]) for patch in bp2c['boxes']]
     ax2.set(title='Widths', xlabel='# variables', ylabel='Ordering width', xticks=range(0, n_experiments * 3, 3),
             xticklabels=graph_sizes)
     ax2.legend([bp2a['boxes'][0], bp2b['boxes'][0], bp2c['boxes'][0]], ['Random', 'Min Degree', 'Min Fill'])
+
+    # plt.savefig('plot.png')
     plt.show()
 
 

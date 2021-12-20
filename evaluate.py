@@ -15,18 +15,17 @@ def generate_BN(n_vars: int) -> BayesNet:
     :return:        a BayesNet instance
     """
     var_names = [str(v) for v in np.arange(1, n_vars + 1)]
-    edges = []
+    edges = np.array([[], []])  # Edges going from first row to second row
     cpts = {}
 
     for i, var in enumerate(var_names):
         # Creating the cpt for var -> depends on the parents -> find parents by looking through edges
-        parents = [p for p, c in edges if c == var]
+        parents = edges[0, np.where(edges[1] == var)].ravel() if edges.size > 0 else []
         new_cpt = init_factor(list(np.append(parents, var)))
         # Generate uniform random p-values for each True/False pair
-        for j in range(0, len(new_cpt), 2):
-            x = np.around(np.random.rand(), decimals=2)
-            new_cpt.loc[j, 'p'] = x
-            new_cpt.loc[j + 1, 'p'] = 1 - x
+        x = np.around(np.random.rand(int(len(new_cpt) / 2)), decimals=2)
+        new_cpt.loc[::2, 'p'] = x
+        new_cpt.loc[1::2, 'p'] = 1-x
         cpts[var] = new_cpt
 
         # Choose the amount of children - between 1 and (n_vars - current_var - previously selected vars).
@@ -35,12 +34,11 @@ def generate_BN(n_vars: int) -> BayesNet:
         n_children = min(int(np.around(np.random.pareto(a=1) + min_n_children)), n_vars - 1 - i)
         # Choose from var_names[i+1:], meaning ignore the current and previously selected vars, to avoid cycles.
         children = np.random.choice(var_names[i + 1:], size=n_children, replace=False)
-        for child in children:
-            edge = (var, child)
-            edges.append(edge)
+        new_edges = np.vstack((np.repeat(var, repeats=n_children), children))
+        edges = np.hstack((edges, new_edges))
 
     bn = BayesNet()
-    bn.create_bn(var_names, edges, cpts)
+    bn.create_bn(var_names, list(map(tuple, edges.T)), cpts)
     return bn
 
 
@@ -49,7 +47,7 @@ def run_queries(bnr, n_queries, order):
     for q in range(n_queries):
         variables = bnr.bn.get_all_variables()
         e = pd.Series({}, dtype=str)
-        for v in np.random.choice(variables, np.random.randint(1, 4), replace=False):
+        for v in np.random.choice(variables, 2, replace=False):
             e = e.append(pd.Series({v: np.random.choice([True, False])}))
         m = np.random.choice(np.setdiff1d(variables, e.keys()), 2)
 
@@ -72,7 +70,7 @@ def main():
     interval = 5
     graph_sizes = np.arange(5, 5 + interval * n_experiments, interval)  # 10 different graph size, from 5 to 95 vars
     n_graphs = 10  # Number of graphs per graph size
-    n_queries = 5  # Number of queries per graph
+    n_queries = 1  # Number of queries per graph
 
     res_df = pd.DataFrame(columns=graph_sizes)
     results = pd.DataFrame(

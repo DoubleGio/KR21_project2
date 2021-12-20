@@ -3,6 +3,9 @@ from itertools import product, combinations
 import pandas as pd
 import numpy as np
 from copy import deepcopy
+
+import pandas.errors
+
 from BayesNet import BayesNet
 
 
@@ -86,16 +89,19 @@ class BNReasoner:
         else:
             return False
 
-    def network_pruning(self, q, e):
+    def network_pruning(self, q: List[str], e: pd.Series, network: BayesNet = None) -> BayesNet:
         """
+        :param network: network to be pruned
         :param q: set of query vars --> e.g. ['A','B','C']
         :param e: evidence set --> e.g. {'A': True, 'B': False}
         """
+        if network is None:
+            network = self.bn
 
         evidence = list(e.keys())
         query_plus_evidence_variables = [q, evidence]
         query_plus_evidence_variables = [item for sublist in query_plus_evidence_variables for item in sublist]
-        all_variables = self.bn.get_all_variables()
+        all_variables = network.get_all_variables()
         non_instantiated_variables = list(set(all_variables) - set(query_plus_evidence_variables))
 
         # iteratively removes leaf nodes that are not in the set of {q,e}
@@ -106,22 +112,23 @@ class BNReasoner:
                 break
 
             for var in non_instantiated_variables[:]:
-                if not self.bn.get_children(var):
+                if not network.get_children(var):
                     non_instantiated_variables.remove(var)
-                    self.bn.del_var(var)
+                    network.del_var(var)
                     counter -= 1
                 else:
                     counter += 1
 
         # remove outgoing edges from all nodes in Z, and update CPTs
         for var in evidence:
-            for child in self.bn.get_children(var):
-                self.bn.del_edge((var, child))
+            for child in network.get_children(var):
+                network.del_edge((var, child))
 
                 # new = self.bn.get_compatible_instantiations_table(pd.Series(e), self.bn.get_cpt(child))
-                new = self.bn.get_compatible_instantiations_table(pd.Series({var: e.get(var)}), self.bn.get_cpt(child))
+                new = self.bn.get_compatible_instantiations_table(pd.Series({var: e.get(var)}), network.get_cpt(child))
                 new = new.drop([var], axis=1)
-                self.bn.update_cpt(child, new)
+                network.update_cpt(child, new.reset_index(drop=True))
+        return network
 
     def sum_out_factors(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
         """
@@ -135,9 +142,9 @@ class BNReasoner:
         if isinstance(subset, str):
             subset = [subset]
 
-        variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
-        new_factor = init_factor(variables, 0)
-        subset_factor = init_factor(subset, 0)
+        new_factor = factor.drop(subset + ['p'], axis=1).drop_duplicates()
+        new_factor['p'] = 0
+        subset_factor = init_factor(subset)
 
         for i, y in new_factor.iterrows():
             for _, z in subset_factor.iterrows():
@@ -145,7 +152,42 @@ class BNReasoner:
                     y[:-1].append(z[:-1]), factor)['p'].sum()
                 # sum() instead of float() here, since the compatible table can be empty at times, this works around it
 
-        return new_factor
+        return new_factor.reset_index(drop=True)
+
+    def maximise_out(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
+        """
+
+        :param factor:
+        :param subset:
+        :return:
+        """
+        if isinstance(factor, str):
+            factor = self.bn.get_cpt(factor)
+        if isinstance(subset, str):
+            subset = [subset]
+
+        # Copy the factor, drop the variable(s) to be maximized, the extensions and 'p' and drop all duplicates to get
+        # each possible instantiation.
+        ext = [c for c in factor.columns if c[:3] == 'ext']
+        instantiations = deepcopy(factor).drop(subset + ext + ['p'], axis=1).drop_duplicates()
+        res_factor = pd.DataFrame(columns=factor.columns)
+
+        if len(instantiations.columns) == 0:
+            try:
+                res_factor = res_factor.append(factor.iloc[factor['p'].idxmax()])
+            except IndexError:
+                print('w')
+        else:
+            for _, instantiation in instantiations.iterrows():
+                cpt = self.bn.get_compatible_instantiations_table(instantiation, factor)
+                res_factor = res_factor.append(factor.iloc[cpt['p'].idxmax()])
+
+        # For each maximized-out variable(s), rename them to ext(variable)
+        for v in subset:
+            x = res_factor.pop(v)
+            res_factor[f'ext({v})'] = x
+
+        return res_factor.reset_index(drop=True)
 
     def multiply_factors(self, factors: List[Union[str, pd.DataFrame]]) -> pd.DataFrame:
         """
@@ -158,35 +200,13 @@ class BNReasoner:
             if isinstance(y, str):
                 factors[x] = self.bn.get_cpt(y)
 
-        e = pd.Series({}, dtype=str)
-
-        for f in factors:
-            cols = list(f.columns)
-            cols.remove('p')
-            for c in cols:
-                if len(f[f[c] == True]) == 0:
-                    e = e.append(pd.Series({c: False}))
-                elif len(f[f[c] == False]) == 0:
-                    e = e.append(pd.Series({c: True}))
-        # new_factor = deepcopy(factors[0])
-        # for f in factors[1:]:
-        #     cols = list(f.columns)
-        #     cols.remove('p')
-        #     for c in cols:
-        #         if c not in new_factor.columns:
-        #             if len(f[f[c] == True]) == 0 or len(f[f[c] == False]) == 0:
-        #                 new_factor[c] = f[c].values
-        #             else:
-        #                 new_factor = pd.concat([new_factor] * 2, ignore_index=True)
-        #                 new_factor[c] = [True] * int(len(new_factor) / 2) + [False] * int(len(new_factor) / 2)
-        # new_factor.pop('p')
-        # new_factor['p'] = [1] * len(new_factor)
-
-        variables = list(set().union(*factors))  # All variables occurring in all given factors (screws up ordering tho)
-        variables.remove('p')  # Remove 'p' col to add it again in the next step, ensuring it ends up as the last col
-        extensions = list(filter(lambda s: s[:3] == 'ext', variables))
-        variables = list(filter(lambda s: s[:3] != 'ext', variables))
-        new_factor = init_factor(variables, 1)
+        new_factor = factors[0].drop('p', axis=1)
+        for i, factor in enumerate(factors[1:]):
+            try:
+                new_factor = new_factor.merge(factor.drop('p', axis=1), how='outer')
+            except pandas.errors.MergeError:
+                new_factor = new_factor.join(factor.drop('p', axis=1), how='outer')
+        new_factor['p'] = 1
 
         for i, z in new_factor.iterrows():
             for _, f in enumerate(factors):
@@ -194,9 +214,12 @@ class BNReasoner:
                     z[:-1], f)['p'].sum()
                 # sum() instead of float() here, since the compatible table can be empty at times, this works around it
 
-        new_factor = self.bn.get_compatible_instantiations_table(e, new_factor)
-
-        # add extensions
+        # Reordering new_factor, putting the extensions to the back
+        cols = new_factor.columns
+        ext = [c for c in cols if c[:3] == 'ext']
+        if len(ext) > 0:
+            rest = list(np.setdiff1d(cols, ext))
+            new_factor = new_factor[rest + ext]
 
         return new_factor.reset_index(drop=True)
 
@@ -330,33 +353,6 @@ class BNReasoner:
             G.remove_node(var)
         return width
 
-    def maximise_out(self, factor: Union[str, pd.DataFrame], subset: Union[str, list]) -> pd.DataFrame:
-        if isinstance(factor, str):
-            factor = self.bn.get_cpt(factor)
-        if isinstance(subset, str):
-            subset = [subset]
-
-        new_factor = deepcopy(factor).sort_values(by=subset).drop(subset, axis=1)
-        variables = list(new_factor.columns)
-        variables.remove('p')
-
-        # variables = [v for v in factor.keys() if v not in subset + ['p']]  # Set subtraction: Factor - Subset - p
-        # new_factor = init_factor(variables, 0)
-        # subset_factor = init_factor(subset, 0)
-
-        res_factor = pd.DataFrame(columns=factor.columns)
-
-        # for i, y in new_factor.iterrows():
-        for _, instantiation in new_factor[:int(len(new_factor)/2)].iterrows():
-            cpt = self.bn.get_compatible_instantiations_table(instantiation[:-1], new_factor)
-            res_factor = res_factor.append(factor.iloc[cpt['p'].idxmax()])
-
-        for v in subset:
-            x = res_factor.pop(v)
-            res_factor[f'ext({v})'] = x
-
-        return res_factor.reset_index(drop=True)
-
     def MPE(self, evidence: pd.Series, order_func: str = None):
         N = deepcopy(self.bn)
         # Prune Edges
@@ -364,15 +360,13 @@ class BNReasoner:
             for child in N.get_children(var):
                 N.del_edge((var, child))
 
-                # new = self.bn.get_compatible_instantiations_table(pd.Series(e), self.bn.get_cpt(child))
                 new = N.get_compatible_instantiations_table(evidence, N.get_cpt(child)).reset_index(drop=True)
                 new = new.drop([var], axis=1)
                 N.update_cpt(child, new)
             u = N.get_compatible_instantiations_table(evidence, N.get_cpt(var)).reset_index(drop=True)
             N.update_cpt(var, u)
 
-        Q = N.get_all_variables()
-        if order_func is None:
+        if order_func is None or order_func == "random":
             order = self.random_order(N)
         elif order_func == "min_degree":
             order = self.min_degree_order(N)
@@ -381,7 +375,37 @@ class BNReasoner:
         else:
             raise Exception("Wrong order argument")
 
-        order = ['J', 'I', 'X', 'Y', 'O']
+        S = N.get_all_cpts()
+        for var_pi in order:
+            # Pop all functions from S, which mention var_pi...
+            func_k = [S.pop(key) for key, cpt in deepcopy(S).items() if var_pi in cpt]
+
+            new_factor = self.multiply_factors(func_k) if len(func_k) > 1 else func_k[0]
+            new_factor = self.maximise_out(new_factor, var_pi)
+            # And replace them with the new factor
+            S[var_pi] = new_factor
+
+        res_factor = self.multiply_factors(list(S.values())) if len(S) > 1 else S.popitem()[1]
+        return res_factor
+
+    def MAP(self, M: List[str], evidence: pd.Series, order_func: str = None):
+        if len(np.intersect1d(list(evidence.keys()), M)) > 0:
+            raise Exception("Evidence cannot intersect with M")
+
+        N = deepcopy(self.bn)
+        N = self.network_pruning(M, evidence, N)
+        for e in evidence.items():
+            N.update_cpt(e[0], self.bn.get_compatible_instantiations_table(evidence,
+                                                                           N.get_cpt(e[0])).reset_index(drop=True))
+
+        if order_func is None or order_func == "random":
+            order = self.random_order(N)
+        elif order_func == "min_degree":
+            order = self.min_degree_order(N)
+        elif order_func == "min_fill":
+            order = self.min_fill_order(N)
+        else:
+            raise Exception("Wrong order argument")
 
         S = N.get_all_cpts()
         for var_pi in order:
@@ -389,58 +413,16 @@ class BNReasoner:
             func_k = [S.pop(key) for key, cpt in deepcopy(S).items() if var_pi in cpt]
 
             new_factor = self.multiply_factors(func_k) if len(func_k) > 1 else func_k[0]
-            if len(new_factor) > 1:
+            if var_pi in M:
                 new_factor = self.maximise_out(new_factor, var_pi)
+            else:
+                new_factor = self.sum_out_factors(new_factor, var_pi)
             # And replace them with the new factor
-            print(new_factor)
+            # print(new_factor)
             S[var_pi] = new_factor
 
         res_factor = self.multiply_factors(list(S.values())) if len(S) > 1 else S.popitem()[1]
         return res_factor
-
-    def MPE2(self, e):
-        all_vars = self.bn.get_all_variables()
-        evidence = list(e.keys())
-        total_vars = [item for item in all_vars if item not in evidence]
-        # print(all_vars)
-        # print(evidence)
-        # print(total_vars)
-
-        self.network_pruning(total_vars, e)
-        # print(self.bn.draw_structure())
-
-        Q = self.bn.get_all_variables()
-        # print(Q)
-
-        order = self.min_degree_order()
-        # print(order)
-
-        S = self.bn.get_all_cpts()
-        # print(S)
-
-        ''' etc
-        lines 5-10 of mpe algorithm (lecture 4)'''
-
-    def MAP(self, M, e):
-        evidence = list(e.keys())
-        evidence_variables = [evidence]
-        evidence_variables = [item for sublist in evidence_variables for item in sublist]
-        all_variables = self.bn.get_all_variables()
-        self.network_pruning(M, e)
-        for_order = deepcopy(self.bn)
-        for i in range(M):
-            for_order.del_var(M[i])
-        order = for_order.min_degree_order()
-        order.append(M)
-        S = deepcopy(self.bn)
-        for v in all_variables:
-            var = all_variables[v]
-            S.bn.compute_marginal(S.bn.get_cpt(var), order)
-            if var in Q:
-                new_factor = S.sum_out_factors(S.get_cpt(var))
-            else:
-                new_factor = S.maximise_out(S.get_cpt(var))
-        return new_factor
 
 
 def init_factor(variables: List[str], value=0) -> pd.DataFrame:
@@ -451,9 +433,9 @@ def init_factor(variables: List[str], value=0) -> pd.DataFrame:
 
 
 def main():
-    # bnr = BNReasoner('testing/lecture_example.BIFXML')
-    # a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
-    # print(a)
+    bnr = BNReasoner('testing/lecture_example.BIFXML')
+    a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
+    print(a)
     #
     # bnr2 = BNReasoner('testing/multiply_example.BIFXML')
     # b = bnr2.multiply_factors(['D', 'E'])
@@ -465,14 +447,17 @@ def main():
     # cc = bnr3.compute_marginal(['C'], order=bnr3.min_degree_order())
     # print(cc)
 
-    bnr4 = BNReasoner('testing/lecture_example2.BIFXML')
+    # bnr4 = BNReasoner('testing/lecture_example.BIFXML')
     # d = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr4.min_degree_order())
     # print(d)
     # dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
     #                          order=bnr4.min_degree_order())
     # print(dd)
-    d = bnr4.MPE(pd.Series({'J': True, 'O': False}))
+    bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
+    d = bnr5.MPE(pd.Series({'J': True, 'O': False}))
     print(d)
+    e = bnr5.MAP(['I', 'J'], pd.Series({'O': True}))
+    print(e)
 
 
 if __name__ == '__main__':

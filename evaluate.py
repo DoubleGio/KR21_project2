@@ -44,16 +44,20 @@ def generate_BN(n_vars: int) -> BayesNet:
     return bn
 
 
-def run_queries(n_queries, order):
+def run_queries(bnr, n_queries, order):
     timings = np.zeros(n_queries)
     for q in range(n_queries):
-        # make up a query
-        # t_r = perf_counter()
-        # queries
-        # bnr.MAP()
-        # bnr.MPE()
-        # timings[q] = perf_counter() - t_r
-        timings[q] = np.random.randint(0, 10)  # test data
+        variables = bnr.bn.get_all_variables()
+        e = pd.Series({}, dtype=str)
+        for v in np.random.choice(variables, np.random.randint(1, 4), replace=False):
+            e = e.append(pd.Series({v: np.random.choice([True, False])}))
+        m = np.random.choice(np.setdiff1d(variables, e.keys()), 2)
+
+        t_r = perf_counter()
+        bnr.MPE(e, order)
+        bnr.MAP(m, e, order)
+        timings[q] = perf_counter() - t_r
+        # timings[q] = np.random.randint(0, 10)  # test data
     return np.average(timings)
 
 
@@ -63,8 +67,9 @@ def color_bp(boxplot, fill_colors):
 
 
 def main():
-    n_experiments = 2  # Amount of different graph sizes we experiment on
-    interval = 10
+    # np.random.seed(1)
+    n_experiments = 5  # Amount of different graph sizes we experiment on
+    interval = 5
     graph_sizes = np.arange(5, 5 + interval * n_experiments, interval)  # 10 different graph size, from 5 to 95 vars
     n_graphs = 10  # Number of graphs per graph size
     n_queries = 5  # Number of queries per graph
@@ -75,20 +80,18 @@ def main():
          'widths': {'random': res_df.copy(), 'min_degree': res_df.copy(), 'min_fill': res_df.copy()}})
 
     for graph_size in graph_sizes:  # For each graph size...
-        print(f'Generating graphs with {graph_size} variables...')
+        print(f'Graphs with {graph_size} variables...')
         for n in range(n_graphs):   # create n_graphs variations with the same graph size
-            print(f'    Evaluating graph {n+1}/{n_graphs}...', end='\r', flush=True)
+            print(f'\r    Evaluating # {n+1}/{n_graphs}...', end='')
             bnr = BNReasoner(generate_BN(graph_size))
-            orders = {'random': bnr.random_order(), 'min_degree': bnr.min_degree_order(),
-                      'min_fill': bnr.min_fill_order()}
-            results.loc['random', 'timings'].loc[n, graph_size] = run_queries(n_queries, orders['random'])
-            results.loc['random', 'widths'].loc[n, graph_size] = bnr.order_width(orders['random'])
+            results.loc['random', 'timings'].loc[n, graph_size] = run_queries(bnr, n_queries, 'random')
+            results.loc['random', 'widths'].loc[n, graph_size] = bnr.random_order()
 
-            results.loc['min_degree', 'timings'].loc[n, graph_size] = run_queries(n_queries, orders['min_degree'])
-            results.loc['min_degree', 'widths'].loc[n, graph_size] = bnr.order_width(orders['min_degree'])
+            results.loc['min_degree', 'timings'].loc[n, graph_size] = run_queries(bnr, n_queries, 'min_degree')
+            results.loc['min_degree', 'widths'].loc[n, graph_size] = bnr.min_degree_order()
 
-            results.loc['min_fill', 'timings'].loc[n, graph_size] = run_queries(n_queries, orders['min_fill'])
-            results.loc['min_fill', 'widths'].loc[n, graph_size] = bnr.order_width(orders['min_fill'])
+            results.loc['min_fill', 'timings'].loc[n, graph_size] = run_queries(bnr, n_queries, 'min_fill')
+            results.loc['min_fill', 'widths'].loc[n, graph_size] = bnr.min_fill_order()
         print('    Done!')
 
     # PLOTTING TIME
@@ -122,7 +125,7 @@ def main():
             xticklabels=graph_sizes)
     ax2.legend([bp2a['boxes'][0], bp2b['boxes'][0], bp2c['boxes'][0]], ['Random', 'Min Degree', 'Min Fill'])
 
-    # plt.savefig('plot.png')
+    plt.savefig('plot.png')
     plt.show()
 
 

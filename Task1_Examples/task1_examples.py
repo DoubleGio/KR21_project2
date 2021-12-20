@@ -40,7 +40,6 @@ y = BNReasoner('testing/lecture_example2.BIFXML')
 #print(y.d_separation(['O'], ['Y','X'], ['J']))  # True
 #print(y.d_separation(['Y'], ['X','Y'], ['O']))  # True
 
-
 #y.bn.draw_structure()
 #print(y.bn.get_all_variables())
 

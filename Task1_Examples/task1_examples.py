@@ -49,11 +49,11 @@ y = BNReasoner('testing/lecture_example2.BIFXML')
 # ordering #
 ############
 
-print(x.min_degree_order())  # 'Slippery Road?', 'Winter?', 'Sprinkler?', 'Rain?', 'Wet Grass?'
-print(x.min_fill_order())  # 'Winter?', 'Sprinkler?', 'Wet Grass?', 'Rain?', 'Slippery Road?'
+#print(x.min_degree_order())  # 'Slippery Road?', 'Winter?', 'Sprinkler?', 'Rain?', 'Wet Grass?'
+#print(x.min_fill_order())  # 'Winter?', 'Sprinkler?', 'Wet Grass?', 'Rain?', 'Slippery Road?'
 
-print(y.min_degree_order())  # 'I', 'J', 'Y', 'X', 'O'
-print(y.min_fill_order())  # 'I', 'J', 'Y', 'X', 'O'
+#print(y.min_degree_order())  # 'I', 'J', 'Y', 'X', 'O'
+#print(y.min_fill_order())  # 'I', 'J', 'Y', 'X', 'O'
 
 
 ###################

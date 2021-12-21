@@ -80,3 +80,59 @@ y = BNReasoner('testing/lecture_example2.BIFXML')
 #print(y.bn.get_all_variables())
 #print(y.bn.get_all_cpts())
 #y.bn.draw_structure()
+
+
+###############
+# Summing Out #
+###############
+
+bnr = BNReasoner('testing/lecture_example.BIFXML')
+#print(bnr.bn.get_cpt('Wet Grass?'))
+#a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
+#print(a)
+
+
+########################
+# Multipliying factors #
+########################
+
+bnr2 = BNReasoner('testing/lecture_example.BIFXML')
+#print(bnr2.bn.get_cpt('Winter?'))
+#print(bnr2.bn.get_cpt('Rain?'))
+#b = bnr2.multiply_factors(['Winter?', 'Rain?'])
+#print(b)
+
+
+####################
+# Compute Marginal #
+####################
+
+bnr3 = BNReasoner('testing/lecture_example.BIFXML')
+#c = bnr3.compute_marginal(['Wet Grass?', 'Slippery Road?'], order=bnr3.min_degree_order())
+#print(c)
+
+#
+#
+#
+
+#c2 = bnr3.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
+#                              order=bnr3.min_fill_order())
+#print(c2)
+
+
+#######
+# MPE #
+#######
+
+bnr4 = BNReasoner('testing/lecture_example2.BIFXML')
+#d = bnr4.MPE(pd.Series({'J': True, 'O': False}))
+#print(d)
+
+
+#######
+# MAP #
+#######
+
+bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
+#e = bnr5.MAP(['I', 'J'], pd.Series({'O': True}))
+#print(e)

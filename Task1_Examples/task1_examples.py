@@ -45,7 +45,7 @@ y = BNReasoner('testing/lecture_example2.BIFXML')
 
 
 ############
-# ordering #
+# Ordering #
 ############
 
 #print(x.min_degree_order())  # 'Slippery Road?', 'Winter?', 'Sprinkler?', 'Rain?', 'Wet Grass?'
@@ -93,7 +93,7 @@ bnr = BNReasoner('testing/lecture_example.BIFXML')
 
 
 ########################
-# Multipliying factors #
+# Multipliying Factors #
 ########################
 
 bnr2 = BNReasoner('testing/lecture_example.BIFXML')

@@ -3,7 +3,6 @@ from itertools import product, combinations
 import pandas as pd
 import numpy as np
 from copy import deepcopy
-
 import pandas.errors
 
 from BayesNet import BayesNet
@@ -223,45 +222,6 @@ class BNReasoner:
 
         return new_factor.reset_index(drop=True)
 
-    def compute_marginal(self, query: List[str], evidence: pd.Series = None, order: List[str] = None) -> pd.DataFrame:
-        """
-        Compute the prior marginal Pr(query) or joint/posterior marginal Pr(query, evidence).
-        :param query:       variables in network N
-        :param evidence:    optional; instantiation of some variables in network N
-        :param order:       optional; ordering of variables in network N
-        :return:            a factor describing the marginal
-        """
-        if order is None:
-            order = self.random_order()
-
-        S = self.bn.get_all_cpts()
-
-        if evidence is not None:  # If there's evidence, reduce all CPTs using the evidence
-            for var in self.bn.get_all_variables():
-                var_cpt = self.bn.get_cpt(var)
-                if any(evidence.keys().intersection(var_cpt.columns)):  # If the evidence occurs in the cpt
-                    new_cpt = self.bn.get_compatible_instantiations_table(evidence, var_cpt)
-                    S[var] = new_cpt
-
-        pi = [nv for nv in order if nv not in query]
-        for var_pi in pi:
-            # Pop all functions from S, which mention var_pi...
-            func_k = [S.pop(key) for key, cpt in deepcopy(S).items() if var_pi in cpt]
-
-            new_factor = self.multiply_factors(func_k)
-            new_factor = self.sum_out_factors(new_factor, var_pi)
-            # And replace them with the new factor
-            S[var_pi] = new_factor
-
-        res_factor = self.multiply_factors(list(S.values())) if len(S) > 1 else S.popitem()[1]
-
-        if evidence is not None:  # Normalizing over pr_evidence
-            cpt_e = self.compute_marginal(list(evidence.keys()), order=order)
-            pr_evidence = float(self.bn.get_compatible_instantiations_table(evidence, cpt_e)['p'])
-            res_factor['p'] = res_factor['p'] / pr_evidence
-
-        return res_factor
-
     def random_order(self, network: BayesNet = None) -> List[str]:
         """
         :return: a random ordering of all variables in self.bn
@@ -353,7 +313,52 @@ class BNReasoner:
             G.remove_node(var)
         return width
 
-    def MPE(self, evidence: pd.Series, order_func: str = None):
+    def compute_marginal(self, query: List[str], evidence: pd.Series = None, order: List[str] = None) -> pd.DataFrame:
+        """
+        Compute the prior marginal Pr(query) or joint/posterior marginal Pr(query, evidence).
+        :param query:       variables in network N
+        :param evidence:    optional; instantiation of some variables in network N
+        :param order:       optional; ordering of variables in network N
+        :return:            a factor describing the marginal
+        """
+        if order is None:
+            order = self.random_order()
+
+        S = self.bn.get_all_cpts()
+
+        if evidence is not None:  # If there's evidence, reduce all CPTs using the evidence
+            for var in self.bn.get_all_variables():
+                var_cpt = self.bn.get_cpt(var)
+                if any(evidence.keys().intersection(var_cpt.columns)):  # If the evidence occurs in the cpt
+                    new_cpt = self.bn.get_compatible_instantiations_table(evidence, var_cpt)
+                    S[var] = new_cpt
+
+        pi = [nv for nv in order if nv not in query]
+        for var_pi in pi:
+            # Pop all functions from S, which mention var_pi...
+            func_k = [S.pop(key) for key, cpt in deepcopy(S).items() if var_pi in cpt]
+
+            new_factor = self.multiply_factors(func_k)
+            new_factor = self.sum_out_factors(new_factor, var_pi)
+            # And replace them with the new factor
+            S[var_pi] = new_factor
+
+        res_factor = self.multiply_factors(list(S.values())) if len(S) > 1 else S.popitem()[1]
+
+        if evidence is not None:  # Normalizing over pr_evidence
+            cpt_e = self.compute_marginal(list(evidence.keys()), order=order)
+            pr_evidence = float(self.bn.get_compatible_instantiations_table(evidence, cpt_e)['p'])
+            res_factor['p'] = res_factor['p'] / pr_evidence
+
+        return res_factor
+
+    def MPE(self, evidence: pd.Series, order_func: str = None) -> pd.DataFrame:
+        """
+        Compute the MPE instantiation for some given evidence.
+        :param evidence:
+        :param order_func:  String describing which order function to use
+        :return:            Dataframe describing the MPE instantiation
+        """
         N = deepcopy(self.bn)
         # Prune Edges
         for var in evidence.keys():
@@ -388,7 +393,14 @@ class BNReasoner:
         res_factor = self.multiply_factors(list(S.values())) if len(S) > 1 else S.popitem()[1]
         return res_factor
 
-    def MAP(self, M: List[str], evidence: pd.Series, order_func: str = None):
+    def MAP(self, M: List[str], evidence: pd.Series, order_func: str = None) -> pd.DataFrame:
+        """
+        Compute the MAP instantiation for some variables and some given evidence.
+        :param M:           The MAP variables
+        :param evidence:
+        :param order_func:  String describing which order function to use
+        :return:            Dataframe describing the MAP instantiation
+        """
         if len(np.intersect1d(list(evidence.keys()), M)) > 0:
             raise Exception("Evidence cannot intersect with M")
 
@@ -426,6 +438,12 @@ class BNReasoner:
 
 
 def init_factor(variables: List[str], value=0) -> pd.DataFrame:
+    """
+    Generate a default CPT.
+    :param variables:   Column names
+    :param value:       Which the default p-value should be
+    :return:            A CPT
+    """
     truth_table = product([True, False], repeat=len(variables))
     factor = pd.DataFrame(truth_table, columns=variables)
     factor['p'] = value
@@ -433,6 +451,7 @@ def init_factor(variables: List[str], value=0) -> pd.DataFrame:
 
 
 def main():
+    # Some examples
     bnr = BNReasoner('testing/lecture_example.BIFXML')
     a = bnr.sum_out_factors('Wet Grass?', 'Wet Grass?')
     print(a)
@@ -453,11 +472,11 @@ def main():
     # dd = bnr4.compute_marginal(['Wet Grass?', 'Slippery Road?'], pd.Series({'Winter?': True, 'Sprinkler?': False}),
     #                          order=bnr4.min_degree_order())
     # print(dd)
-    bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
-    d = bnr5.MPE(pd.Series({'J': True, 'O': False}))
-    print(d)
-    e = bnr5.MAP(['I', 'J'], pd.Series({'O': True}))
-    print(e)
+    # bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
+    # d = bnr5.MPE(pd.Series({'J': True, 'O': False}))
+    # print(d)
+    # e = bnr5.MAP(['I', 'J'], pd.Series({'O': True}))
+    # print(e)
 
 
 if __name__ == '__main__':

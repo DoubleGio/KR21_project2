@@ -150,6 +150,7 @@ bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
 #
 #
 
+#pd.set_option("display.max_columns", None) # print full dataframe
 bnr5_2 = BNReasoner('testing/lecture_example.BIFXML')
 #e2 = bnr5_2.MAP(['Winter?', 'Rain?'], pd.Series({'Wet Grass?': True}))
 #print(e2)

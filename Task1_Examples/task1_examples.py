@@ -1,5 +1,5 @@
 from BNReasoner import BNReasoner
-
+import pandas as pd
 
 # EXAMPLES:
 
@@ -128,6 +128,15 @@ bnr4 = BNReasoner('testing/lecture_example2.BIFXML')
 #d = bnr4.MPE(pd.Series({'J': True, 'O': False}))
 #print(d)
 
+#
+#
+#
+
+#pd.set_option("display.max_columns", None) # print full dataframe
+bnr4_2 = BNReasoner('testing/lecture_example.BIFXML')
+#d2 = bnr4_2.MPE(pd.Series({'Winter?': True, 'Rain?': False}))
+#print(d2)
+
 
 #######
 # MAP #
@@ -136,3 +145,11 @@ bnr4 = BNReasoner('testing/lecture_example2.BIFXML')
 bnr5 = BNReasoner('testing/lecture_example2.BIFXML')
 #e = bnr5.MAP(['I', 'J'], pd.Series({'O': True}))
 #print(e)
+
+#
+#
+#
+
+bnr5_2 = BNReasoner('testing/lecture_example.BIFXML')
+#e2 = bnr5_2.MAP(['Winter?', 'Rain?'], pd.Series({'Wet Grass?': True}))
+#print(e2)
